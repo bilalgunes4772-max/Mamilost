@@ -307,7 +307,7 @@
             });
         }
 
-        function closeDay() {
+                function closeDay() {
             const closingCash = parseFloat(document.getElementById("closingCash").value);
             const closingPos = parseFloat(document.getElementById("closingPos").value);
             
@@ -341,14 +341,24 @@
                 difference: diff
             });
 
+            // GÜNCELLEME: Burada günü kapatırken Firebase'de gün aktifliğini kapatıyor ve satışları sıfırlıyoruz.
             db.ref(currentShop).update({
-                history: localState.history
+                history: localState.history,
+                isDayActive: false, // Ekranı sabah kasası girişine kilitler
+                openingCash: 0,
+                sales: {} // Tüm ürünlerin adetlerini sıfırlar
             });
+
+            // Form alanlarını temizle
+            document.getElementById("openingCash").value = "";
+            document.getElementById("closingCash").value = "";
+            document.getElementById("closingPos").value = "";
 
             document.getElementById("salesPanel").classList.add("hidden");
             document.getElementById("closePanel").classList.add("hidden");
             document.getElementById("reportPanel").classList.remove("hidden");
         }
+
 
         function resetDay() {
             document.getElementById("openingCash").value = "";
