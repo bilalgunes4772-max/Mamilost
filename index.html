@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mamilost Kasa v7 - AMOLED</title>
+    <link rel="manifest" href="./manifest.json">
+    
+    <!-- Firebase ve Chart.js SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-amoled: #000000;
+            --card-bg: #0d0f12;
+            --card-inner: #13171c;
+            --accent-cyan: #00f2fe;
+            --accent-neon: #4facfe;
+            --accent-red: #ff3333;
+            --text-main: #f1f5f9;
+            --text-bright: #ffffff;
+            --text-muted: #64748b;
+            --success-green: #00e676;
+            --border-line: #1e293b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-amoled); color: var(--text-main); padding-bottom: 85px; }
+
+        header { 
+            background: var(--bg-amoled); padding: 18px 15px; 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border-line); position: sticky; top: 0; z-index: 100;
+        }
+        header h2 { color: var(--text-bright); font-size: 1.3rem; font-weight: 900; letter-spacing: 1px; }
+        select { 
+            background: var(--card-bg); color: var(--text-bright); border: 1px solid var(--border-line);
+            padding: 10px 16px; border-radius: 10px; font-weight: bold; outline: none; font-size: 0.85rem;
+        }
+
+        .tab-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 65px;
+            background: rgba(13, 15, 18, 0.95); display: flex; justify-content: space-around;
+            border-top: 1px solid var(--border-line); z-index: 100; backdrop-filter: blur(10px);
+        }
+        .tab-btn {
+            background: none; border: none; color: var(--text-muted); flex: 1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 0.75rem; font-weight: 700; gap: 5px; cursor: pointer;
+        }
+        .tab-btn.active { color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0, 242, 254, 0.4); }
+        .tab-btn .icon { font-size: 1.3rem; }
+
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .main-card { 
+            background: var(--card-bg); padding: 20px; border-radius: 16px; 
+            border: 1px solid var(--border-line); margin-bottom: 15px;
+        }
+        .main-card h3 { font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 18px; letter-spacing: 1.5px; font-weight: 800; }
+
+        .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .grid-item {
+            background: var(--card-bg); border: 1px solid var(--border-line);
+            border-radius: 16px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .grid-item .title { font-weight: 700; font-size: 1rem; color: var(--text-bright); height: 42px; overflow: hidden; line-height: 1.3; }
+        .grid-item .price { color: var(--text-muted); font-size: 0.85rem; font-weight: 600; margin-top: 6px; }
+        
+        .grid-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; background: var(--card-inner); border-radius: 12px; padding: 4px; }
+        .grid-controls button { 
+            background: transparent; border: none; color: var(--text-bright); font-size: 1.4rem;
+            width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .grid-controls .qty { font-size: 1.15rem; font-weight: 800; color: var(--accent-cyan); }
+        .grid-controls .qty.zero { color: var(--text-muted); }
+
+        .live-bar {
+            background: linear-gradient(135deg, var(--card-bg) 0%, #050608 100%);
+            padding: 20px; border-radius: 16px; border: 1px solid var(--border-line);
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+        }
+        .live-bar .label { font-size: 0.85rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; }
+        .live-bar .val { font-size: 1.7rem; font-weight: 900; color: var(--success-green); }
+
+        .input-box {
+            width: 100%; background: var(--card-inner); border: 1px solid var(--border-line);
+            padding: 14px; color: var(--text-bright); border-radius: 12px; font-size: 0.95rem; outline: none; margin-bottom: 12px;
+        }
+        
+        .action-btn {
+            width: 100%; background: var(--card-bg); color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan); padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer;
+        }
+
+        .edit-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 12px 0; border-bottom: 1px solid var(--border-line);
+        }
+        .edit-row .prod-name { font-weight: 600; flex: 1; font-size: 0.95rem; color: var(--text-bright); }
+        .edit-row .price-input {
+            width: 75px; background: var(--card-inner); border: 1px solid var(--border-line);
+            color: var(--accent-cyan); padding: 8px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 0.9rem; outline: none;
+        }
+        .edit-btn { background: transparent; border: 1px solid var(--success-green); color: var(--success-green); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+        .del-btn { background: transparent; border: 1px solid var(--accent-red); color: var(--accent-red); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+
+        /* Net Raporlama Listesi Satırları */
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-line); font-size: 0.95rem; align-items: center; }
+        .info-row span:last-child { font-weight: 700; color: var(--text-bright); }
+        .info-row.highlight { border-bottom: 2px dashed var(--border-line); margin-bottom: 10px; }
+        .info-row.highlight span:last-child { color: var(--success-green); font-size: 1.1rem; }
+
+        .chart-container { position: relative; margin-top: 10px; height: 240px; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>MAMİLOST KASA</h2>
+        <select id="shopSelect" onchange="switchShop()">
+            <option value="dukan_1">DÜKKAN 1</option>
+            <option value="dukan_2">DÜKKAN 2</option>
+        </select>
+    </header>
+
+    <div class="container">
+
+        <!-- SEKME 1: SATIŞ EKRANI -->
+        <div id="tab-sales" class="tab-content active">
+            <div class="live-bar">
+                <div><div class="label" id="dateLabel">Bugün</div></div>
+                <div>
+                    <div class="label" style="text-align: right;">Günlük Toplam</div>
+                    <div class="val"><span id="liveTotal">0</span> ₺</div>
+                </div>
+            </div>
+            <div class="product-grid" id="productList"></div>
+        </div>
+
+        <!-- SEKME 2: GRAFİK VE RAPORLAR -->
+        <div id="tab-reports" class="tab-content">
+            <div class="main-card">
+                <h3>Aylık Satış Grafiği (Günlük)</h3>
+                <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+            </div>
+            <div class="main-card">
+                <h3>Yıllık Satış Grafiği (Aylık Toplam)</h3>
+                <div class="chart-container"><canvas id="yearlyChart"></canvas></div>
+            </div>
+            
+            <!-- YENİ EKLENEN ALAN: NET SAYISAL RAPOR ÖZETİ -->
+            <div class="main-card">
+                <h3>Bu Ayın Net Satış Özetleri</h3>
+                <div id="netReportContent">
+                    <div class="center-text" style="color:var(--text-muted); padding: 10px 0;">Yükleniyor...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEKME 3: ÜRÜN YÖNETİMİ VE DÜZENLEME -->
+        <div id="tab-admin" class="tab-content">
+            <div class="main-card">
+                <h3>Yeni Ürün Tanımla</h3>
+                <input type="text" id="newProdName" class="input-box" placeholder="Ürün İsmi">
+                <input type="number" id="newProdPrice" class="input-box" placeholder="Fiyat (₺)" inputmode="numeric">
+                <button onclick="addNewProduct()" class="action-btn">Listeye Dahil Et</button>
+            </div>
+            <div class="main-card">
+                <h3>Fiyat Düzenle / Ürün Sil</h3>
+                <div id="adminProductList"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ALT SEKME MENÜSÜ -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('sales', this)">
+            <span class="icon">🛒</span><span>Satış Ekranı</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('reports', this); loadCharts();">
+            <span class="icon">📊</span><span>Raporlama</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('admin', this)">
+            <span class="icon">⚙️</span><span>Ayarlar</span>
+        </button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCG678SkfCXPYEma-kG5hiIGQ-WMFarsWs",
+            authDomain: "mamilost-97fd5.firebaseapp.com",
+            databaseURL: "https://mamilost-97fd5-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "mamilost-97fd5",
+            storageBucket: "mamilost-97fd5.firebasestorage.app",
+            messagingSenderId: "162275451046",
+            appId: "1:162275451046:web:aabfb547f6df3e4276dc67",
+            measurementId: "G-26D7B5D648"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentShop = "dukan_1";
+        let localState = {};
+        let monthlyChartInstance = null;
+        let yearlyChartInstance = null;
+        
+        function getTodayDateStr() {
+            const today = new Date();
+            return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            if(btnElement) btnElement.classList.add('active');
+        }
+
+        function switchShop() {
+            currentShop = document.getElementById("shopSelect").value;
+            db.ref(currentShop).off();
+            startFirebaseListener();
+        }
+
+        function startFirebaseListener() {
+            document.getElementById("dateLabel").innerText = new Date().toLocaleDateString('tr-TR');
+
+            db.ref(currentShop).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    localState = data;
+                    if (!localState.products) localState.products = [];
+                    if (!localState.history) localState.history = {};
+                }
+                renderProductsGrid();
+                renderAdminProducts();
+                updateLiveTotal();
+                if(document.getElementById('tab-reports').classList.contains('active')) {
+                    loadCharts();
+                }
+            });
+        }
+
+        function renderProductsGrid() {
+            const grid = document.getElementById("productList");
+            grid.innerHTML = "";
+            const todayStr = getTodayDateStr();
+            const todaySales = (localState.history && localState.history[todayStr]) ? (localState.history[todayStr].salesData || {}) : {};
+            
+            localState.products.forEach(p => {
+                let count = todaySales[p.id] || 0;
+                grid.innerHTML += `
+                    <div class="grid-item">
+                        <div>
+                            <div class="title">${p.name}</div>
+                            <div class="price">${p.price} ₺</div>
+                        </div>
+                        <div class="grid-controls">
+                            <button onclick="changeCount(${p.id}, -1)">-</button>
+                            <span class="qty ${count === 0 ? 'zero' : ''}">${count}</span>
+                            <button onclick="changeCount(${p.id}, 1)">+</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderAdminProducts() {
+            const adminList = document.getElementById("adminProductList");
+            adminList.innerHTML = "";
+            localState.products.forEach(p => {
+                adminList.innerHTML += `
+                    <div class="edit-row">
+                        <span class="prod-name">${p.name}</span>
+                        <input type="number" class="price-input" id="price-inp-${p.id}" value="${p.price}" inputmode="numeric">
+                        <button class="edit-btn" onclick="updateProductPrice(${p.id})">Güncelle</button>
+                        <button class="del-btn" onclick="deleteProduct(${p.id})">Sil</button>
+                    </div>
+                `;
+            });
+        }
+
+        function updateProductPrice(id) {
+            const newPrice = parseFloat(document.getElementById(`price-inp-${id}`).value);
+            if(isNaN(newPrice) || newPrice < 0) return alert("Lütfen geçerli bir fiyat girin.");
+
+            localState.products = localState.products.map(p => {
+                if(p.id === id) p.price = newPrice;
+                return p;
+            });
+
+            const todayStr = getTodayDateStr();
+            if (localState.history && localState.history[todayStr] && localState.history[todayStr].salesData) {
+                let dayTotal = 0;
+                localState.products.forEach(p => {
+                    let cnt = localState.history[todayStr].salesData[p.id] || 0;
+                    dayTotal += cnt * p.price;
+                });
+                localState.history[todayStr].totalCiro = dayTotal;
+                db.ref(currentShop + "/history/" + todayStr).set(localState.history[todayStr]);
+            }
+
+            db.ref(currentShop + "/products").set(localState.products).then(() => {
+                alert("Fiyat başarıyla güncellendi!");
+            });
+        }
+
+        function changeCount(id, delta) {
+            const todayStr = getTodayDateStr();
+            if (!localState.history) localState.history = {};
+            if (!localState.history[todayStr]) localState.history[todayStr] = { totalCiro: 0, salesData: {} };
+            if (!localState.history[todayStr].salesData) localState.history[todayStr].salesData = {};
+            
+            let currentCount = localState.history[todayStr].salesData[id] || 0;
+            currentCount += delta;
+            if (currentCount < 0) currentCount = 0;
+            
+            localState.history[todayStr].salesData[id] = currentCount;
+            
+            let dayTotal = 0;
+            localState.products.forEach(p => {
+                let cnt = localState.history[todayStr].salesData[p.id] || 0;
+                dayTotal += cnt * p.price;
+            });
+            localState.history[todayStr].totalCiro = dayTotal;
+
+            db.ref(currentShop + "/history/" + todayStr).set(localState.history[todayStr]);
+        }
+
+        function updateLiveTotal() {
+            const todayStr = getTodayDateStr();
+            let total = (localState.history && localState.history[todayStr]) ? (localState.history[todayStr].totalCiro || 0) : 0;
+            document.getElementById("liveTotal").innerText = total;
+        }
+
+        function addNewProduct() {
+            const name = document.getElementById("newProdName").value.trim();
+            const price = parseFloat(document.getElementById("newProdPrice").value);
+            if(!name || isNaN(price)) return alert("Eksik bilgi.");
+
+            if(!localState.products) localState.products = [];
+            localState.products.push({ id: Date.now(), name: name, price: price });
+            db.ref(currentShop + "/products").set(localState.products);
+            
+            document.getElementById("newProdName").value = "";
+            document.getElementById("newProdPrice").value = "";
+        }
+
+        function deleteProduct(id) {
+            if(!confirm("Ürün silinsin mi?")) return;
+            localState.products = localState.products.filter(p => p.id !== id);
+            db.ref(currentShop + "/products").set(localState.products);
+        }
+
+        function loadCharts() {
+            const history = localState.history || {};
+            const today = new Date();
+            const currentMonth = today.getMonth() + 1;
+            const currentYear = today.getFullYear();
+
+            Chart.defaults.color = '#64748b';
+
+            // 1. Aylık Veriler (Çizgi Grafiği) ve Net Sayısal Hesaplama Düzenlemesi
+            let monthlyLabels = [];
+            let monthlyData = [];
+            let thisMonthTotalCiro = 0;
+            let productTotals = {}; // { prodId: totalQty }
+
+            // Ürün havuzunu sıfırla
+            localState.products.forEach(p => { productTotals[p.id] = 0; });
+
+            for (let d = 1; d <= 31; d++) {
+                let dateKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                monthlyLabels.push(d);
+                
+                if (history[dateKey]) {
+                    monthlyData.push(history[dateKey].totalCiro || 0);
+                    thisMonthTotalCiro += (history[dateKey].totalCiro || 0);
+                    
+                    // Ürün adetlerini topla
+                    if (history[dateKey].salesData) {
+                        Object.keys(history[dateKey].salesData).forEach(pId => {
+                            if (productTotals[pId] !== undefined) {
+                                productTotals[pId] += (history[dateKey].salesData[pId] || 0);
+                            } else {
+                                productTotals[pId] = (history[dateKey].salesData[pId] || 0);
+                            }
+                        });
+                    }
+                } else {
+                    monthlyData.push(0);
+                }
+            }
+
+            // Sayısal Net Rapor Paneline Verileri Yazma
+            const reportContentDiv = document.getElementById("netReportContent");
+            let htmlContent = `
+                <div class="info-row highlight">
+                    <span>Bu Ay Toplam Ciro:</span>
+                    <span>${thisMonthTotalCiro} ₺</span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-top:15px; margin-bottom:5px; text-transform:uppercase; font-weight:bold; letter-spacing:1px;">Ürün Bazlı Toplam Satış Adetleri</div>
+            `;
+
+            localState.products.forEach(p => {
+                let totalQty = productTotals[p.id] || 0;
+                htmlContent += `
+                    <div class="info-row">
+                        <span>${p.name}:</span>
+                        <span>${totalQty} Adet</span>
+                    </div>
+                `;
+            });
+            reportContentDiv.innerHTML = htmlContent;
+
+
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+            monthlyChartInstance = new Chart(document.getElementById('monthlyChart'), {
+                type: 'line',
+                data: {
+                    labels: monthlyLabels,
+                    datasets: [{ label: 'Günlük Ciro (₺)', data: monthlyData, borderColor: '#00f2fe', backgroundColor: 'rgba(0, 242, 254, 0.05)', tension: 0.3, fill: true, borderWidth: 2 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#141820' } }, x: { grid: { display: false } } } }
+            });
+
+            // 2. Yıllık Veriler (Bar Grafiği)
+            let yearlyLabels = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+            let yearlyData = Array(12).fill(0);
+
+            Object.keys(history).forEach(dateKey => {
+                let parts = dateKey.split('-');
+                if(parts.length === 3 && parseInt(parts[0]) === currentYear) {
+                    let monthIndex = parseInt(parts[1]) - 1;
+                    yearlyData[monthIndex] += history[dateKey].totalCiro || 0;
+                }
+            });
+
+            if (yearlyChartInstance) yearlyChartInstance.destroy();
+            yearlyChartInstance = new Chart(document.getElementById('yearlyChart'), {
+                type: 'bar',
+                data: {
+                    labels: yearlyLabels,
+                    datasets: [{ label: 'Aylık Toplam (₺)', data: yearlyData, backgroundColor: '#00e676', borderRadius: 6 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#141820' } }, x: { grid: { display: false } } } }
+            });
+        }
+
+        window.onload = startFirebaseListener;
+    </script>
+</body>
+</html>
